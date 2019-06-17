@@ -18,32 +18,16 @@ The Interaction of DID and blockchain ledger happens via the API servers hosted 
 Emtrust DIDs are represented by their did\:emtrust: method string and conform to the [Generic DID Scheme](https://w3c-ccg.github.io/did-spec/#the-generic-did-scheme).
 
 
-A simplle DID format has the following structure.
+A valid Emtrust DID would look like: 
 
 ```
-{
-  "@context": "https://w3id.org/did/v1",
-  "id": "did:emtrust:0xdadac9f39033a7205b28849cc1dae698d5ceac18",
-  "publicKey": [{
-      "id": "unq1"
-      "type": "ED25519SignatureVerification",
-      "publicKeyBase58": "0441baa17a778380a5a5ee9f1b3ff8cda5be12915eace85fd91c9daba7a7023f0955548e28c6a4ff5614ebe64aa95740be23599c16b7dfed484313f4a5b43649b2",
-      "authorizations": ["LOGIN_ACCESS"]
-    }],
-  "authentication": [{
-      "type": "ED25519SigningAuthentication",
-      "publicKey": "unq1"
-    }],
-  "service": [{
-      "type": "emtrustService",
-      "serviceEndpoint":" https://emtrust.io/zombies "
-    }]
-}
+did:emtrust:0xdadac9f39033a7205b28849cc1dae698d5ceac18
 
 ```
 
+### CRUD Operation Definitions
 
-### DID Document Creation and Registration
+#### Create (Registration)
 
 The DID document is created with following steps
 
@@ -54,14 +38,86 @@ The DID document is created with following steps
 5. A Service provider (DID participating organization) is contacted to enroll the ID
 6. Service Provider registeres the ID on blockchain with registration metadata and organizations singature.
 
-The hash from step 3 is your DID.
+The hash from step 3 is the DID.
 
-### DID Document Resolution
+The minimum DID document for an Emtrust ID without any service and no transactions would look like this:
+
+```
+{
+  "@context": "https://w3id.org/did/v1",
+  "id": "did:emtrust:0xdadac9f39033a7205b28849cc1dae698d5ceac18",
+  "publicKey": [{
+      "id": "did:emtrust:0xdadac9f39033a7205b28849cc1dae698d5ceac18#unq1"
+      "type": "ED25519SignatureVerification",
+      "publicKeyBase58": "0441baa17a778380a5a5ee9f1b3ff8cda5be12915eace85fd91c9daba7a7023f0955548e28c6a4ff5614ebe64aa95740be23599c16b7dfed484313f4a5b43649b2",
+      "authorizations": []
+    }],
+  "authentication": [{
+      "type": "ED25519SigningAuthentication",
+      "publicKey": "did:emtrust:0xdadac9f39033a7205b28849cc1dae698d5ceac18#unq1"
+    }]
+}
+
+```
+The document once generated need not to be connected to any network. After generation, for registration steps , a service provider API (`https://<service-provider>/enroll`)need to be accessed ( for eg: https://identity.emtrust.io/enroll) to submit and record the DID on the ledger.
+
+#### Read (Resolve)
 
 Entrust DID Document are reolved by querying the smart contract running on blockchain for existance and the respective DID document is fetched and served to the verifier. The verifier usage one of the service provider hosted API server to query the blockchain.
 
-### DID Document Modification
+The DID will always have primary public address with the fragment `#unq1` appended.
+```
+  {
+      "id": "did:emtrust:0xdadac9f39033a7205b28849cc1dae698d5ceac18#unq1"
+      "type": "ED25519SignatureVerification",
+      "publicKeyBase58": "0441baa17a778380a5a5ee9f1b3ff8cda5be12915eace85fd91c9daba7a7023f0955548e28c6a4ff5614ebe64aa95740be23599c16b7dfed484313f4a5b43649b2",
+      ...
+  }
+```
+The other public keys with fragements numbered with `unq` would represent alternate identification keys.
+
+The DID document can also have id with `#sub` prefix appended as fragments, which would represents the secondary or delegated identity representation.
+
+```
+  {
+      "id": "did:emtrust:0xdadac9f39033a7205b28849cc1dae698d5ceac18#sub-1"
+       ...
+  }
+```
+
+
+#### Update (Modification)
 As the documents are saved on permissioned blockchain, the roles for each DID document is assigned by the moderator for the organization ( or auto role assigned based on configured rules). With Write permissions , users are able to submit the changes in did document.
+
+#### Delete (Revoke)
+
+As there is no centralised control of the registry the DID documents could not be deleted. However, Service providers can add assertions on ledger for DID to grant or revoke respective services.
+
+A user deactivation request by the owner of the id could be submitted by adding "intent" attribute to the transaction and calling api for service provider with url `https://<service-provider>/revoke`.
+
+For example, 
+```
+{
+  "@context": "https://w3id.org/did/v1",
+  "id": "did:emtrust:0xdadac9f39033a7205b28849cc1dae698d5ceac18",
+  "publicKey": [{
+      "id": "did:emtrust:0xdadac9f39033a7205b28849cc1dae698d5ceac18#unq1"
+      "type": "ED25519SignatureVerification",
+      ...
+    }],
+  "authentication": [{
+      "type": "ED25519SigningAuthentication",
+      "publicKey": "did:emtrust:0xdadac9f39033a7205b28849cc1dae698d5ceac18#unq1"
+    }],
+  "intent:revoke":{
+    "id":"did:emtrust:0xdadac9f39033a7205b28849cc1dae698d5ceac18",
+    "remarks":"No longer needed"
+  }
+}
+```
+
+This would assert the DID doument on ledger and will no loger be eligible for adding any new services.
+
 
 ## Key Management
 
@@ -74,8 +130,13 @@ As the possibility of loosing the private keys are significant, the Seed phrase 
 ### Key Revocation
 With no presence of centralized control of revocation, the DID document always recides on blockchain, but an assertion is made by service provider in case of revocation request which could be used for controlling the permissions for 3rd party services access.
 
-## DID Transaction Process Flow
-// TODO
 
-## Claims and Proofs
-// TODO
+## Secutity Considerations
+
+- The generated seed pharse which is used to generate private key **MUST** be stored on the client-side (user's private device).
+- Utilizing EmTrust Object store for document storage insteads of plain IPFS as to control the readability and share access.
+- API access to the Service provider **MUST** be in https and client app should be able to switch between service providers.
+
+## Reference
+
+- [DID Method Registry](https://w3c-ccg.github.io/did-method-registry/)
